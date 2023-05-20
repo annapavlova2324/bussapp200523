@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en"> 
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+<style>
+.flex-container {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.buttons_container {
+    display: flex;
+    justify-content: center;
+    gap: 10px 20px;
+}
+.route_name_container {
+    display: flex;
+    flex-direction: column;
+    
+}
+</style>
+  <title>html form</title>
+</head>
+<body onload="reqData()"> 
+    <div class="container-sm">
+        <h1 id="header" style="text-align: center;">
+            Busside tunniplaan
+        </h1>
+        <h2 style="text-align: center;">
+            Siin Te saate valida vajalikku piirkonda.
+            <small class="text-muted">Peale piirkonda valimist ilmub rippmenüü, kus saab valida peatust. </small>
+            <small class="text-danger">(NB! Peale peatuse valimist on vaja natuke oodata kui ilmub busside nimikiri!)</small>
+        </h2>    
+        <br>
+    </div>
+
+        <div id="highdiv" class="flex-container">
+            <div>
+                <input id="stop_area_value" type="text" class="form-control" placeholder="Palun valige piirkond.." aria-describedby="button-addon2">
+            </div>
+            <div>
+                <button id="button1" onclick="sendDataToNode()" class="btn btn-outline-secondary" type="button" id="button-addon2">OK</button>
+            </div>
+        </div>   
+    
+        <br>
+        
+        <div id="lowdiv" class="flex-container">
+            <div>
+                <input id="stop_name_value" type="text" class="form-control" placeholder="Palun valige peatus.." aria-describedby="button-addon2">
+            </div>
+            <div>
+                <button onclick="sendStopName()" class="btn btn-outline-secondary" type="button" id="button-addon2">OK</button>
+            </div>
+        </div> 
+        <br>
+        <div class="buttons_container">
+            <h4 id="textaboutbuttons"></h4>
+            <br>
+        </div>
+        <br>
+        <div id="buttons1" class="buttons_container">
+            
+        </div>
+        <br>
+        <div id="buttons2" class="buttons_container">
+
+        </div>
+        <br>
+        <div class="flex-container">
+            <button type="button" class="btn btn-outline-danger" onClick="refreshPage()">Välju</button>
+        </div>
+        <br>
+        <div class="route_name_container">
+            <div>
+                <h4 id="route_name_h4" style="text-align: center;"></h4>
+            </div>
+            <br>
+            <div>
+                <h4 id="route_name_2" style="text-align: center;"></h4>
+            </div>    
+        </div>
+        <div id="slideContainer" class="flex-container">
+
+        </div>
+
+
+
+<script>
+
+    var today = new Date();
+    var currentSeconds = ('0'+today.getSeconds()).substr(-2);
+    var time = today.getHours() + ":" + today.getMinutes() + ":" + currentSeconds;
+    
+
+    const url = '/fetch';
+    const array = [];
+ 
+    function reqData() {
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                for(var i=0; i<data.length; i++){
+                    array.push(data[i].stop_area);
+                }
+                const uniqueValues = [...new Set(array)];
+                uniqueValues.sort();
+                document.getElementById("lowdiv").style.visibility = "hidden";
+                addAutoComplete("stop_area_value","suggestions1", uniqueValues);
+            })
+            .catch((error) => {
+                console.error(error);
+            })
+    }
+
+    function sendDataToNode() {
+        document.getElementById("lowdiv").style.visibility = "visible";
+        document.getElementById("stop_name_value").value = "";
+        const stops_array = [];
+        let varName = document.getElementById("stop_area_value").value;
+        console.log(varName)
+        const data = { varName };    
+        fetch('/info/' + varName)
+            .then(res => res.json())
+            .then(data => {
+                for(var i = 0; i<data.length; i++){
+                    stops_array.push(data[i].stop_name);
+                }
+                const uniqueValues1 = [...new Set(stops_array)];
+                uniqueValues1.sort();
+                console.log(uniqueValues1);
+                addAutoComplete("stop_name_value", "suggections2", uniqueValues1);
+                
+            })
+            .catch((error) => {
+                console.error(error);
+            })
+    }
+
+
+   function sendStopName() {
+        let stoparea = document.getElementById("stop_area_value").value;
+        let stopname = document.getElementById("stop_name_value").value;
+        document.getElementById("highdiv").style.visibility = "hidden";
+        document.getElementById("lowdiv").style.visibility = "hidden";
+        const busValues = [];
+        fetch('/stopname/' + stoparea +'/'+ stopname)
+        .then(res => res.json())
+        .then(data => {
+            for(var i = 0; i<data.length; i++)
+            {
+                busValues.push(data[i].route_short_name);
+            }
+            busValues.sort();
+            const numericBUS = [];
+            const charBUS = [];
+            for(var i = 0; i<busValues.length; i++){
+                if(containsOnlyNumbers(busValues[i]) == true){
+                    numericBUS.push(busValues[i]);
+                }
+                else {
+                    charBUS.push(busValues[i]);
+                }
+            }
+            var paragraph = document.getElementById("textaboutbuttons");
+            var text = document.createTextNode('Busside nimikiri peatusel " ' + stopname + '" : ');
+            paragraph.appendChild(text);
+            appendButtons(numericBUS, 'buttons1');
+            appendButtons(charBUS, 'buttons2');
+            
+        });
+
+        
+    }
+
+    function addAutoComplete(inputValue, divValue, list) {
+        
+        let element = document.querySelector("[id='" + inputValue + "']");
+    
+        element.addEventListener("input", function () {
+                
+                closeList(divValue);
+
+                if (!this.value)
+                return;
+
+                suggestions = document.createElement('div');
+                suggestions.className = "form-control";
+                suggestions.setAttribute('id', divValue);
+                this.parentNode.appendChild(suggestions);
+
+                if (inputValue == "stop_area_value"){document.getElementById("lowdiv").style.visibility = "hidden";}
+                //else {document.getElementById("lowdiv").style.visibility = "visible";}
+    
+                for (let i=0; i<list.length; i++) {
+                    if (list[i].toUpperCase().includes(this.value.toUpperCase())) {
+                    suggestion = document.createElement('div');
+                    suggestion.className = "form-control";
+                    suggestion.innerHTML = list[i];
+                    suggestion.addEventListener('click', function () {
+                    element.value = this.innerHTML;
+                    closeList(divValue);
+                    });
+                    suggestion.style.cursor = 'pointer';
+                    suggestions.appendChild(suggestion);
+                    }
+                }
+            });
+    }
+
+    function closeList(divValue) {
+        let suggestions = document.getElementById(divValue);
+        if (suggestions)
+            suggestions.parentNode.removeChild(suggestions);
+            //document.getElementById("lowdiv").style.visibility = "visible";
+    }
+
+    function containsOnlyNumbers(str) {
+        return /^\d+$/.test(str);
+    }
+
+    function appendButtons(list, div_ID) {
+        list.sort();
+        var num = 0;
+        document.getElementById(div_ID).value = "";
+        var docFrag = document.createDocumentFragment();
+        for(var x = 0; x < list.length; x++){
+            var elem = document.createElement('input');
+            elem.type = 'button';
+            elem.id = num++;
+            elem.className = 'btn btn-outline-dark';
+            elem.value = list[x];
+            elem.onclick = function(){getStopTimes(this.id)}; 
+            docFrag.appendChild(elem);
+        }
+        document.getElementById(div_ID).appendChild(docFrag);
+    }
+
+    function getStopTimes(clicked_id){
+        let button_value = document.getElementById(clicked_id).value;
+        let stoparea = document.getElementById("stop_area_value").value;
+        let stopname = document.getElementById("stop_name_value").value;
+        document.getElementById("buttons1").style.visibility = "hidden";
+        document.getElementById("buttons2").style.visibility = "hidden";
+        document.getElementById("textaboutbuttons").style.visibility = "hidden";
+        const array_stop_times = [];
+        var str = '<ul>'
+        fetch('/busname/' + stoparea + '/' + stopname + '/' + button_value)
+        .then(res => res.json())
+        .then(data => {
+            for(var i = 0; i<data.length; i++){
+                array_stop_times.push(data[i].arrival_time);
+            }
+        array_stop_times.sort();
+        console.log(array_stop_times);
+        for(var i = 0; i<array_stop_times.length; i++){
+            if(array_stop_times[i] >= time){
+                str += '<li>'+ array_stop_times[i] + '</li>';
+            }
+        }
+        str += '</ul>';
+        document.getElementById("slideContainer").innerHTML = str;
+
+            
+
+        })
+        fetch('/routename/' + stopname + '/' + button_value)
+        .then(res => res.json())
+        .then(data => {
+            for(var i = 0; i<data.length; i++){
+                var paragraph = document.getElementById("route_name_h4");
+                var paragraph2 = document.getElementById("route_name_2");
+                var text = document.createTextNode('Tunniplaan bussi nr. ' +  button_value + ' jaoks.');
+                var text2 = document.createTextNode('Liin liigub maršruudil -->  ' + data[i].route_long_name + ' .');
+                paragraph.appendChild(text);
+                paragraph2.appendChild(text2);
+            }
+        })
+
+
+    }
+      
+    function refreshPage(){
+        window.location.reload();
+    } 
+
+    
+
+
+</script>
+
+</body>
+</html>
+
+
